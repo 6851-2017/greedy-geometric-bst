@@ -1,13 +1,29 @@
 <head>
 
-<script type="text/javascript">
-  // Represent each point as a json object:
-  // {'time': time, 'value': value}
-  // where 'time' = time accessed and 'value' = the value of the key
+<link rel="stylesheet" href="greedy-geometric-bst.css"/>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 
+<script type="text/javascript">
+  // TODO: Move time to the y-axis and value to the x-axis
+  // TODO: Draw and label axes
+  // TODO: Allow option to randomize the points
+  //       - Could input desired number of points?
+
+  // Represent each point as a json object:
+  // {'time': time, 'value': value, 'isOriginalPoint': boolean} where:
+  // 'time' = time accessed
+  // 'value' = the value of the key
+  // 'isOriginalPoint' is true if the point was in the 
+  //   original set of search points.
+
+  // Stores the current set of points in our graph
   var currentPoints = [];
 
-  // Returns true if the rectangle with firstPoint and secondPoint
+  // Stores how long the next item should wait before appearing
+  // Used to ensure points and rectangles show up sequentially
+  var currentTotalTimeout = 0;
+
+  // Returns true if the rectangle with firstPoint and secondPoint as corners
   // is unsatisfied and false otherwise.
   // currentPoints is the set of points we currently have.
   var unsatisfiedRectangle = function(firstPoint, secondPoint, currentPoints) {
@@ -43,9 +59,73 @@
   		return isUnsatisfied;
   	}
 
-  // Prints the points that satisfy the greedy geometric BST algorithm.
+  // Draw a point during the normal animation --
+  // use this if you're drawing a point for the first time.
+  var drawPointAnimated = function(canvas, currentSearchPoint) {
+    currentTotalTimeout += 1000;
+    setTimeout(function() {
+      drawPoint(canvas, currentSearchPoint);
+    }, currentTotalTimeout);
+  }
+
+  // Draw a point immediately on the canvas.
+  // Use this *only* to redraw points that have been
+  // previously drawn.
+  var drawPoint = function(canvas, currentSearchPoint) {    
+    var xCoordinate = currentSearchPoint.time;
+    var yCoordinate = canvas.height - currentSearchPoint.value;
+    var pointRadius = 5;
+
+    var ctx = canvas.getContext('2d');
+    // Color original points vs. new points differently
+    if (currentSearchPoint.isOriginalPoint) {
+      ctx.fillStyle = 'blue';
+    } else {
+      ctx.fillStyle = 'red';
+    }
+
+    ctx.beginPath();
+    ctx.arc(xCoordinate, yCoordinate, pointRadius, 0, 2*Math.PI, false);
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  // Draw an unsatisfied rectangles on canvas with corners at
+  // firstPoint and secondPoint
+  var drawUnsatisfiedRectangle = function(canvas, firstPoint, secondPoint) {
+    currentTotalTimeout += 1000;
+
+    // Use top-left corner
+    var xCoordinate = Math.min(firstPoint.time, secondPoint.time);
+    var yCoordinate = canvas.height - Math.max(firstPoint.value, secondPoint.value);
+    var width = Math.abs(secondPoint.time - firstPoint.time);
+    var height = Math.abs(firstPoint.value - secondPoint.value);
+
+    // Draw the rectangle
+    setTimeout(function() {
+      ctx = canvas.getContext('2d');
+      ctx.strokeStyle = 'green';
+      ctx.strokeWidth = 1;
+      ctx.strokeRect(xCoordinate, yCoordinate, width, height);
+    },
+    currentTotalTimeout);
+
+    // Delete the rectangle at the same time as you add
+    // the point that satisfies the rectangle
+    setTimeout(function() {
+      ctx.clearRect(xCoordinate-1, yCoordinate-1, width+4, height+4);
+      // Redraw the rectangle's corners, since the clearRect
+      // will clear part of the original points
+      drawPoint(canvas, firstPoint);
+      drawPoint(canvas, secondPoint);
+    },
+    currentTotalTimeout + 1000);
+  }
+
+  // Animates the greedy geometric BST algorithm.
+  // ctx is the canvas on which to draw the points
   // searchPoints must be in order from smallest to largest value
-  var greedyGeometricBst = function(searchPoints) {
+  var greedyGeometricBst = function(canvas, searchPoints) {
 
   	if (searchPoints.length == 0) {
   		// Base case: we're done searching
@@ -62,10 +142,16 @@
   	// Add search point to our list
   	currentPoints.push(currentSearchPoint);
 
+    // Draw this point on the canvas
+    drawPointAnimated(canvas, currentSearchPoint, true);
+
   	// See if there's any unsatisfied rectangles
   	// If there are, satisfy them
   	currentPoints.forEach(function(point) {
   		if (unsatisfiedRectangle(point, currentSearchPoint, currentPoints)) {
+          // Show the unsatisfied rectangle
+          drawUnsatisfiedRectangle(canvas, point, currentSearchPoint);
+
   				// If unsatisfied, must add a point
   				// the point should be on the same row as the current
   				// search point, so it should have the same time as
@@ -74,25 +160,45 @@
   		 		var newPointTime = point.time;
   		 		var newPoint = {
   		 			'time': newPointTime,
-  		 			'value': newPointValue
+  		 			'value': newPointValue,
+            'isOriginalPoint': false,
   		 		}
   		 		currentPoints.push(newPoint);
+          drawPointAnimated(canvas, newPoint, false);
   		}
   	});
 
   	// Recurse with the next search point
-  	greedyGeometricBst(searchPoints.slice(1));
+  	greedyGeometricBst(canvas, searchPoints.slice(1));
 
   };
 
   // Call function as an example
-  greedyGeometricBst([{'time': 3, 'value': 10},
+  /*greedyGeometricBst([{'time': 3, 'value': 10},
   					  {'time': 1, 'value': 20},
   					  {'time': 4, 'value': 30},
   					  {'time': 2, 'value': 40}]);
 
   greedyGeometricBst([{'time': 5, 'value': 100},
-  					  {'time': 5, 'value': 200}]);
+  					  {'time': 5, 'value': 200}]);*/
+
+
+  $(document).ready(function() {
+    var canvas = document.getElementById('graph-canvas');
+    var ctx = canvas.getContext('2d');
+    canvas.width = "500";
+    canvas.height = "500";
+
+    var exampleArray =
+             [{'time': 300, 'value': 100, 'isOriginalPoint': true},
+              {'time': 100, 'value': 200, 'isOriginalPoint': true},
+              {'time': 400, 'value': 300, 'isOriginalPoint': true},
+              {'time': 200, 'value': 400, 'isOriginalPoint': true}];
+
+    greedyGeometricBst(canvas, exampleArray);
+
+  })
+
 
 </script>
 
@@ -104,11 +210,14 @@
 
 <p> Caitlin Cassidy </p>
 
-<p> Use the console to try it out! The example from class: </p>
+<p> This animated example uses the example from class: </p>
 
-<p>   greedyGeometricBst([{'time': 3, 'value': 10},
-  					  {'time': 1, 'value': 20},
-  					  {'time': 4, 'value': 30},
-  					  {'time': 2, 'value': 40}]); </p>
+<p>   greedyGeometricBst([{'time': 300, 'value': 100},
+  					  {'time': 100, 'value': 200},
+  					  {'time': 400, 'value': 300},
+  					  {'time': 200, 'value': 400}]); </p>
+
+<canvas id="graph-canvas"></canvas>
+
 
 </body>
